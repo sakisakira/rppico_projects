@@ -23,12 +23,14 @@ static uint32_t start_ms = 0;
 static uint16_t past_adc_values[SAMPLE_COUNT];
 static uint32_t sample_index = 0;
 static uint32_t current_button = 0;
+static uint16_t current_volume = 50;
 
 enum ButtonType {
   OnBoardButton = 1,
   PushButton,
-  VolumeUp,
+  VolumeChanged,
   VolumeDown,
+  VolumeUp,
   Error,
 };
 
@@ -87,13 +89,11 @@ void hid_task(void) {
     for (uint32_t index = 0; index < SAMPLE_COUNT; ++index)
       prev_value += past_adc_values[index];
     prev_value /= SAMPLE_COUNT;
-    const int16_t value_diff = (int16_t)adc_value - (uint16_t)prev_value;
-
-    if (value_diff < -DiffMax) {
-      current_button = VolumeDown;
-    }
-    else if (value_diff > DiffMax) {
-      current_button = VolumeUp;
+    //current_volume = prev_value * 1.f / 4096 * 100;
+    current_volume = prev_value;
+    const int16_t value_diff = ((int16_t)adc_value) - ((int16_t)prev_value);
+    if (abs(value_diff) > DiffMax) {
+      current_button = VolumeChanged;
     }
   }
   else
@@ -144,11 +144,46 @@ static void send_hid_report(uint8_t report_id, uint32_t button) {
         tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &play_pause, 2);
         sleep_ms(500);
         has_consumer_key = true;
+      } else if (button == VolumeUp) {
+        uint16_t volume_up = HID_USAGE_CONSUMER_VOLUME_INCREMENT;
+        tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &volume_up, 2);
+        sleep_ms(200);
+        has_consumer_key = true;
+      } else if (button == VolumeDown) {
+        uint16_t volume_down = HID_USAGE_CONSUMER_VOLUME_DECREMENT;
+        tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &volume_down, 2);
+        sleep_ms(200);
+        has_consumer_key = true;
       } else {
         uint16_t empty_key = 0;
         if (has_consumer_key) 
           tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &empty_key, 2);
         has_consumer_key = false;
+      }
+    }
+    break;
+  }
+
+  case REPORT_ID_CONSUMER_CONTROL_V:
+  {
+    static bool has_consumer_v_key = false;
+
+    if (button) {
+      if (button == VolumeChanged) {
+        struct {
+          uint16_t volume_key;
+          uint16_t volume_value;
+          uint8_t dummy[3];
+        } report;
+        report.volume_key = HID_USAGE_CONSUMER_VOLUME;
+        report.volume_value = current_volume;
+        tud_hid_report(REPORT_ID_CONSUMER_CONTROL_V, &report, sizeof(report));
+        has_consumer_v_key = true;
+      } else {
+        uint8_t dummy[7] = {0};
+        if (has_consumer_v_key)
+          tud_hid_report(REPORT_ID_CONSUMER_CONTROL_V, &dummy, sizeof(dummy));
+        has_consumer_v_key = false;
       }
     }
     break;
