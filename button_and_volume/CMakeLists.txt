@@ -33,9 +33,9 @@ target_sources(button_and_volume PUBLIC
 target_include_directories(button_and_volume PUBLIC
         ${CMAKE_CURRENT_LIST_DIR})
 
-target_link_libraries(button_and_volume PUBLIC pico_stdlib pico_unique_id tinyusb_device tinyusb_board)
+#pico_enable_stdio_usb(button_and_volume 0)
+#pico_enable_stdio_uart(button_and_volume 0)
 
-# pico_enable_stdio_usb(button_and_volume 1)
-# pico_enable_stdio_uart(button_and_volume 1)
+target_link_libraries(button_and_volume PUBLIC pico_stdlib pico_unique_id tinyusb_device tinyusb_board hardware_adc)
 
 pico_add_extra_outputs(button_and_volume)
