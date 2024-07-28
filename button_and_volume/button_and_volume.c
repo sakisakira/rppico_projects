@@ -19,11 +19,18 @@ static const uint32_t VolumeGPIO = 26 + ADC_INDEX;
 
 static const uint16_t DiffMax = 10;
 
-static uint32_t start_ms = 0;
-static uint16_t past_adc_values[SAMPLE_COUNT];
-static uint32_t sample_index = 0;
-static uint32_t current_button = 0;
-static uint16_t current_volume = 50;
+static uint16_t s_hid_state = 0;
+static uint32_t s_start_ms = 0;
+static uint16_t s_past_adc_values[SAMPLE_COUNT];
+static uint32_t s_sample_index = 0;
+static uint32_t s_current_button = 0;
+static uint16_t s_sent_volume = 0;
+
+enum HIDState {
+  HIDInitializing = 0,
+  HIDSending,
+  HIDIdle,
+};
 
 enum ButtonType {
   OnBoardButton = 1,
@@ -34,6 +41,8 @@ enum ButtonType {
   Error,
 };
 
+void initialize_volume(void);
+void adjust_volume(uint16_t current_volume);
 void hid_task(void);
 static void send_hid_report(uint8_t report_id, uint32_t button);
 
@@ -51,62 +60,105 @@ int main() {
   adc_select_input(ADC_INDEX);
   adc_set_round_robin(0x0);
 
+  s_hid_state = HIDInitializing;
+
   for (uint32_t index = 0; index < SAMPLE_COUNT; ++index)
-    past_adc_values[index] = 0;
+    s_past_adc_values[index] = 0;
 
   while (1)
   {
     tud_task();
 
-    hid_task();
+    if (s_hid_state == HIDInitializing) {
+      initialize_volume();
+    } else {
+      hid_task();
+    }
   }
 
   return 0;
 }
 
+void initialize_volume(void) {
+  if (tud_suspended()) {
+    tud_remote_wakeup();
+  }
+  else {
+    static int count = 51;
+    if (count > 0) {
+      send_hid_report(REPORT_ID_KEYBOARD, VolumeDown);
+      count--;
+    } else {
+      s_hid_state = HIDIdle;
+      s_sent_volume = 0;
+    }
+  }
+}
+
+void adjust_volume(uint16_t currnet_volume) {
+return;
+
+  currnet_volume /= 2;
+  while (currnet_volume < s_sent_volume) {
+    if (tud_suspended()) {
+      tud_remote_wakeup();
+      sleep_ms(2);
+    }
+
+    send_hid_report(REPORT_ID_CONSUMER_CONTROL, VolumeDown);
+    s_sent_volume--;
+    sleep_ms(2);
+  }
+  while (currnet_volume > s_sent_volume) {
+    if (tud_suspended()) {
+      tud_remote_wakeup();
+      sleep_ms(2);
+    }
+
+    send_hid_report(REPORT_ID_CONSUMER_CONTROL, VolumeUp);
+    s_sent_volume++;
+    sleep_ms(2);
+  }
+}
+
 void hid_task(void) {
   static const uint32_t interval_ms = 10;
 
+  if (board_millis() - s_start_ms < interval_ms) return;
+  s_start_ms += interval_ms;
 
-  if (board_millis() - start_ms < interval_ms) return;
-  start_ms += interval_ms;
-
-  current_button = 0;
+  s_current_button = 0;
   static uint32_t prev_button = 0;
   if (board_button_read()) {
-    current_button = OnBoardButton;
+    s_current_button = OnBoardButton;
   }
   if (!gpio_get(PushButtonGPIO)) {
     if (!prev_button != PushButton)
-      current_button = PushButton;
+      s_current_button = PushButton;
   }
 
   const uint16_t adc_value = adc_read();
   if ((adc_value & 0x8000) == 0) {
-    past_adc_values[sample_index] = adc_value;
-    sample_index = (sample_index + 1) % SAMPLE_COUNT;
+    s_past_adc_values[s_sample_index] = adc_value;
+    s_sample_index = (s_sample_index + 1) % SAMPLE_COUNT;
     uint16_t prev_value = 0;
     for (uint32_t index = 0; index < SAMPLE_COUNT; ++index)
-      prev_value += past_adc_values[index];
+      prev_value += s_past_adc_values[index];
     prev_value /= SAMPLE_COUNT;
-    //current_volume = prev_value * 1.f / 4096 * 100;
-    current_volume = prev_value;
-    const int16_t value_diff = ((int16_t)adc_value) - ((int16_t)prev_value);
-    if (abs(value_diff) > DiffMax) {
-      current_button = VolumeChanged;
-    }
+    const uint16_t scaled_volume = prev_value * 1.f / 4096 * 100;
+    adjust_volume(scaled_volume);
   }
   else
   {
-    current_button = Error;
+    s_current_button = Error;
   }
-  prev_button = current_button;
+  prev_button = s_current_button;
 
-  if (tud_suspended() && current_button)
+  if (tud_suspended() && s_current_button)
   {
     tud_remote_wakeup();
   } else {
-    send_hid_report(REPORT_ID_KEYBOARD, current_button);
+    send_hid_report(REPORT_ID_KEYBOARD, s_current_button);
   }
 }
 
@@ -164,31 +216,6 @@ static void send_hid_report(uint8_t report_id, uint32_t button) {
     break;
   }
 
-  case REPORT_ID_CONSUMER_CONTROL_V:
-  {
-    static bool has_consumer_v_key = false;
-
-    if (button) {
-      if (button == VolumeChanged) {
-        struct {
-          uint16_t volume_key;
-          uint16_t volume_value;
-          uint8_t dummy[3];
-        } report;
-        report.volume_key = HID_USAGE_CONSUMER_VOLUME;
-        report.volume_value = current_volume;
-        tud_hid_report(REPORT_ID_CONSUMER_CONTROL_V, &report, sizeof(report));
-        has_consumer_v_key = true;
-      } else {
-        uint8_t dummy[7] = {0};
-        if (has_consumer_v_key)
-          tud_hid_report(REPORT_ID_CONSUMER_CONTROL_V, &dummy, sizeof(dummy));
-        has_consumer_v_key = false;
-      }
-    }
-    break;
-  }
-
   case REPORT_ID_MOUSE:
   {
     int8_t const delta = 0;
@@ -213,7 +240,7 @@ void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint16_
 
   if (next_report_id < REPORT_ID_COUNT)
   {
-    send_hid_report(next_report_id, current_button);
+    send_hid_report(next_report_id, s_current_button);
   }
 }
 
