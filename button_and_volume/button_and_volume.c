@@ -27,9 +27,10 @@ static uint32_t s_current_button = 0;
 static uint16_t s_sent_volume = 0;
 
 enum HIDState {
-  HIDInitializing = 0,
-  HIDSending,
+  HIDInitIdle,
+  HIDInitSending,
   HIDIdle,
+  HIDSending,
 };
 
 enum ButtonType {
@@ -60,7 +61,7 @@ int main() {
   adc_select_input(ADC_INDEX);
   adc_set_round_robin(0x0);
 
-  s_hid_state = HIDInitializing;
+  s_hid_state = HIDInitIdle;
 
   for (uint32_t index = 0; index < SAMPLE_COUNT; ++index)
     s_past_adc_values[index] = 0;
@@ -69,7 +70,7 @@ int main() {
   {
     tud_task();
 
-    if (s_hid_state == HIDInitializing) {
+    if (s_hid_state == HIDInitIdle || s_hid_state == HIDInitSending) {
       initialize_volume();
     } else {
       hid_task();
@@ -80,17 +81,31 @@ int main() {
 }
 
 void initialize_volume(void) {
+  static const uint32_t interval_ms = 10;
+  if (board_millis() - s_start_ms < interval_ms) return;
+  s_start_ms += interval_ms;
+
   if (tud_suspended()) {
     tud_remote_wakeup();
   }
   else {
-    static int count = 51;
-    if (count > 0) {
-      send_hid_report(REPORT_ID_KEYBOARD, VolumeDown);
-      count--;
-    } else {
-      s_hid_state = HIDIdle;
-      s_sent_volume = 0;
+    static int count = 2;
+    if (s_hid_state == HIDInitIdle) {
+      if (count > 0) {
+        s_current_button = OnBoardButton;
+        send_hid_report(REPORT_ID_KEYBOARD, s_current_button);
+        count--;
+        s_hid_state = HIDInitSending;
+      }
+    } else if (s_hid_state == HIDInitSending) {
+      s_current_button = 0;
+      send_hid_report(REPORT_ID_KEYBOARD, s_current_button);
+      if (count == 0) {
+        s_hid_state = HIDIdle;
+        s_sent_volume = 0;
+      } else {
+        s_hid_state = HIDInitIdle;
+      }
     }
   }
 }
