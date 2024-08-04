@@ -145,7 +145,8 @@ void hid_task(void) {
   s_current_button = 0;
   static uint32_t prev_button = 0;
   if (board_button_read()) {
-    s_current_button = OnBoardButton;
+    //s_current_button = OnBoardButton;
+    s_current_button = PushButton;
   }
   if (!gpio_get(PushButtonGPIO)) {
     if (!prev_button != PushButton)
