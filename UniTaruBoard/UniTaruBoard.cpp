@@ -73,6 +73,9 @@ int main()
             gpio_put(LED_PIN, false);
             sleep_ms(100);
         }
+        if (code > 0) {
+            printf("Button pressed: %u\n", code);
+        }
         gpio_put(LED_PIN, false);
         sleep_ms(100);
     }
