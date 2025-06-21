@@ -1,15 +1,15 @@
-# == DO NEVER EDIT THE NEXT LINES for Raspberry Pi Pico VS Code Extension to work ==
+# == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
 if(WIN32)
-   set(USERHOME $ENV{USERPROFILE})
+    set(USERHOME $ENV{USERPROFILE})
 else()
     set(USERHOME $ENV{HOME})
 endif()
-set(PICO_SDK_PATH ${USERHOME}/.pico-sdk/sdk/1.5.0)
-set(PICO_TOOLCHAIN_PATH ${USERHOME}/.pico-sdk/toolchain/13_2_Rel1)
-if(WIN32)
-    set(pico-sdk-tools_DIR ${USERHOME}/.pico-sdk/tools/1.5.1)
-    include(${pico-sdk-tools_DIR}/pico-sdk-tools-config.cmake)
-    include(${pico-sdk-tools_DIR}/pico-sdk-tools-config-version.cmake)
+set(sdkVersion 1.5.0)
+set(toolchainVersion 13_2_Rel1)
+set(picotoolVersion 1.5.0)
+set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
+if (EXISTS ${picoVscode})
+    include(${picoVscode})
 endif()
 # ====================================================================================
 
