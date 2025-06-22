@@ -1,0 +1,3 @@
+[submodule "UniTaruBoard/lib/pico-dfPlayerMini"]
+	path = UniTaruBoard/lib/pico-dfPlayerMini
+	url = git@github.com:nyh-workshop/pico-dfPlayer.git
