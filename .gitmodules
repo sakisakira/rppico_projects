@@ -1,3 +1,4 @@
 [submodule "UniTaruBoard/lib/pico-dfPlayerMini"]
 	path = UniTaruBoard/lib/pico-dfPlayerMini
-	url = git@github.com:nyh-workshop/pico-dfPlayer.git
+	url = git@github.com:sakisakira/pico-dfPlayer.git
+	branch = as_library

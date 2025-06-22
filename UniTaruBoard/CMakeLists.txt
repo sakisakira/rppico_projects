@@ -33,6 +33,8 @@ project(UniTaruBoard C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
+add_subdirectory(lib/pico-dfPlayerMini)
+
 # Add executable. Default name is the project name, version 0.1
 
 add_executable(UniTaruBoard UniTaruBoard.cpp )
@@ -46,7 +48,9 @@ pico_enable_stdio_usb(UniTaruBoard 1)
 
 # Add the standard library to the build
 target_link_libraries(UniTaruBoard
-        pico_stdlib)
+        pico_stdlib
+        hardware_adc
+        pico-dfPlayerMini)
 
 # Add the standard include files to the build
 target_include_directories(UniTaruBoard PRIVATE
